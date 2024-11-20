@@ -1,0 +1,114 @@
+import ipywidgets as widgets
+from IPython.display import display
+import time
+
+# Variables de estado
+pressure = 1013  # Presión inicial en mBares (presión atmosférica)
+system_on = False
+pre_vac_valve_open = False
+high_vac_valve_open = False
+pressure_min_pre_vac = 13.33  # Presión mínima alcanzable con la válvula de pre-vacío en mBares
+pressure_min_high_vac = 0.0013  # Presión mínima alcanzable con la válvula de alta vacío en mBares
+
+# Crear widgets
+pressure_label = widgets.Label(f"Presión: {pressure} mBares")
+timer_label = widgets.Label("Tiempo restante: 0 s")
+system_button = widgets.Button(description="Encender Sistema")
+pre_vac_valve_button = widgets.Button(description="Abrir Válvula Pre-Vacío", disabled=True)
+high_vac_valve_button = widgets.Button(description="Abrir Válvula Alto Vacío", disabled=True)
+reset_button = widgets.Button(description="Reiniciar Simulación")
+
+# Función para actualizar la etiqueta de presión
+def update_pressure_label():
+    if pressure >= 1:
+        pressure_label.value = f"Presión: {pressure:.2f} mBares"
+    elif 0.1 <= pressure < 1:
+        pressure_label.value = f"Presión: {pressure*1000:.2f} µBares"
+    else:
+        pressure_label.value = f"Presión: {pressure*1e6:.2f} nBares"
+
+# Función para actualizar el contador de tiempo
+def update_timer_label(time_left):
+    timer_label.value = f"Tiempo restante: {time_left} s"
+
+# Función de simulación de presión con temporizador
+def simulate_pressure(duration, target_pressure, increase=False):
+    global pressure
+    time_left = duration
+    steps = duration // 10  # Número de pasos en 10 segundos
+    pressure_step = abs(target_pressure - pressure) / steps  # Cambio de presión por paso
+
+    for _ in range(steps):
+        if increase:
+            pressure = min(pressure + pressure_step, target_pressure)
+        else:
+            pressure = max(pressure - pressure_step, target_pressure)
+
+        update_pressure_label()
+        time_left -= 10
+        update_timer_label(time_left)
+        time.sleep(10)
+
+    # Actualizar la presión final
+    pressure = target_pressure
+    update_pressure_label()
+    update_timer_label(0)
+
+# Funciones para los botones
+def toggle_system(b):
+    global system_on
+    system_on = not system_on
+    if system_on:
+        system_button.description = "Apagar Sistema"
+        pre_vac_valve_button.disabled = False
+    else:
+        system_button.description = "Encender Sistema"
+        pre_vac_valve_button.disabled = True
+        high_vac_valve_button.disabled = True
+
+def toggle_pre_vac_valve(b):
+    global pre_vac_valve_open
+    if system_on:
+        pre_vac_valve_open = not pre_vac_valve_open
+        if pre_vac_valve_open:
+            pre_vac_valve_button.description = "Cerrar Válvula Pre-Vacío"
+            high_vac_valve_button.disabled = False
+            simulate_pressure(120, pressure_min_pre_vac)
+        else:
+            pre_vac_valve_button.description = "Abrir Válvula Pre-Vacío"
+            high_vac_valve_button.disabled = True
+            simulate_pressure(120, 1013, increase=True)
+
+def toggle_high_vac_valve(b):
+    global high_vac_valve_open
+    if system_on and pre_vac_valve_open:
+        high_vac_valve_open = not high_vac_valve_open
+        if high_vac_valve_open:
+            high_vac_valve_button.description = "Cerrar Válvula Alto Vacío"
+            simulate_pressure(120, pressure_min_high_vac)
+        else:
+            high_vac_valve_button.description = "Abrir Válvula Alto Vacío"
+            simulate_pressure(120, pressure_min_pre_vac, increase=True)
+
+def reset_simulation(b=None):
+    global system_on, pre_vac_valve_open, high_vac_valve_open, pressure
+    system_on = False
+    pre_vac_valve_open = False
+    high_vac_valve_open = False
+    pressure = 1013  # Presión atmosférica en mBares
+    system_button.description = "Encender Sistema"
+    pre_vac_valve_button.description = "Abrir Válvula Pre-Vacío"
+    high_vac_valve_button.description = "Abrir Válvula Alto Vacío"
+    pre_vac_valve_button.disabled = True
+    high_vac_valve_button.disabled = True
+    update_pressure_label()
+    update_timer_label(0)
+
+# Conectar funciones a los botones
+system_button.on_click(toggle_system)
+pre_vac_valve_button.on_click(toggle_pre_vac_valve)
+high_vac_valve_button.on_click(toggle_high_vac_valve)
+reset_button.on_click(reset_simulation)
+
+# Mostrar widgets
+display(pressure_label, timer_label, system_button, pre_vac_valve_button, high_vac_valve_button, reset_button)
